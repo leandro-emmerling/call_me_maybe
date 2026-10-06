@@ -45,6 +45,7 @@ class Decoder:
         selected_func: FunctionDefinition | None = None
         current_param_key: str = ""
         collected_params: dict[str, Any] = {}
+        current_param_type: str = ""
         while (bracket_count != 0):
 
             if current_state == State.START:
@@ -78,22 +79,33 @@ class Decoder:
                 param_key, param_type = list(
                     selected_func.parameters.items())[current_param_index]
                 current_param_key = param_key
+                current_param_type = param_type
                 param_keys: str = f'"{param_key}": '
                 param_keys_ids = self.llm.encode(param_keys)[0].tolist()
                 input_ids += param_keys_ids
                 output_json += param_keys
+                if param_type.type == "string":
+                    quote_ids = self.llm.encode('"')[0].tolist()
+                    input_ids += quote_ids
+                    output_json += '"'
                 current_state = State.PARAM_VALUE
 
             elif current_state == State.PARAM_VALUE:
                 logits = self.llm.get_logits_from_input_ids(input_ids)
-                valid_num_tokens: list[int] = self._valid_num_token_ids()
-                if not valid_num_tokens:
+                if current_param_type.type == "string":
+                    valid_tokens: list[int] = self._valid_str_token_ids()
+                elif current_param_type.type == "number":
+                    valid_tokens: list[int] = self._valid_num_token_ids()
+                if not valid_tokens:
                     current_state = State.PARAM_SEPERATOR
                 else:
                     modified_logits: list[float] = self._modify_logits(
-                        logits, valid_num_tokens)
+                        logits, valid_tokens)
                     highest_index: int = numpy.argmax(modified_logits)
-                    current_value += self.id_to_text[highest_index]
+                    if self.id_to_text[highest_index] == '"':
+                        current_state = State.PARAM_SEPERATOR
+                    else:
+                        current_value += self.id_to_text[highest_index]
                     input_ids.append(highest_index)
 
             elif current_state == State.PARAM_SEPERATOR:
@@ -159,3 +171,7 @@ class Decoder:
             if all(c in "0123456789.-" for c in token):
                 valid_tokens.append(ids)
         return valid_tokens
+    
+    def _valid_str_token_ids(self) -> list[int]:
+        return list(self.vocab_dict.values())
+            

@@ -1,4 +1,7 @@
 import argparse
+from .models import parse_json_list, T, FunctionDefinition, PromptDefinition
+from llm_sdk.llm_sdk import Small_LLM_Model
+from .decoder import Decoder
 
 def main() -> None:
     """Run the main programm and parse the command
@@ -21,5 +24,13 @@ def main() -> None:
                         "default: 'data/output/function_calls.json')")
     args = parser.parse_args()
 
+    functions: list[FunctionDefinition] = parse_json_list(args.functions_definition, FunctionDefinition)
+    prompts: list[PromptDefinition] = parse_json_list(args.input, PromptDefinition)
+    llm: Small_LLM_Model = Small_LLM_Model()
+    decoder: Decoder = Decoder(llm, functions)
+    
+    
+    
 if __name__ == "__main__":
+    
     main()

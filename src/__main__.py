@@ -29,8 +29,12 @@ def main() -> None:
                         "default: 'data/output/function_calls.json')")
     args = parser.parse_args()
 
-    functions: list[FunctionDefinition] = parse_json_list(args.functions_definition, FunctionDefinition)
-    prompts: list[PromptDefinition] = parse_json_list(args.input, PromptDefinition)
+    functions: list[FunctionDefinition] = (
+        parse_json_list(args.functions_definition, FunctionDefinition)
+        )
+    prompts: list[PromptDefinition] = (
+        parse_json_list(args.input, PromptDefinition)
+        )
     llm: Small_LLM_Model = Small_LLM_Model()
     decoder: Decoder = Decoder(llm, functions)
     json_output: list[dict[str, Any]] = []

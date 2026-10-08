@@ -5,6 +5,7 @@ import json
 from enum import Enum
 import numpy
 
+
 class State(Enum):
     START = 1
     FUNCTION_NAME = 2
@@ -15,10 +16,9 @@ class State(Enum):
 
 class Decoder:
     """To decode the prompt into an valid JSON output format."""
-    def __init__(
-        self, llm: llm_sdk.Small_LLM_Model,
-        functions_list: list[FunctionDefinition]
-        ) -> None:
+    def __init__(self, llm: llm_sdk.Small_LLM_Model,
+                 functions_list: list[FunctionDefinition]
+                 ) -> None:
         """Initialize the decoder.
 
         Args:
@@ -41,11 +41,12 @@ class Decoder:
         bracket_count: int = 1
         current_func_name: str = ""
         current_param_index: int = 0
+        modified_logits: list[float] = []
         current_value: str = ""
         selected_func: FunctionDefinition | None = None
         current_param_key: str = ""
         collected_params: dict[str, Any] = {}
-        current_param_type: str = ""
+        current_param_type: Any = ""
         while (bracket_count != 0):
 
             if current_state == State.START:
@@ -57,14 +58,14 @@ class Decoder:
 
             elif current_state == State.FUNCTION_NAME:
                 logits = self.llm.get_logits_from_input_ids(input_ids)
-                modified_logits: list[float] = self._modify_logits(
+                modified_logits = self._modify_logits(
                     logits, self._valid_token_ids(current_func_name))
-                highest_index: int = numpy.argmax(modified_logits)
+                highest_index: int = int(numpy.argmax(modified_logits))
                 current_func_name += self.id_to_text[highest_index]
                 input_ids.append(highest_index)
                 if current_func_name in (
                     [func.name for func in self.functions_list]
-                    ):
+                     ):
                     fixed_params: str = '", "parameters": {'
                     param_ids = self.llm.encode(fixed_params)[0].tolist()
                     input_ids += param_ids
@@ -76,6 +77,7 @@ class Decoder:
                     current_state = State.PARAM_KEY
 
             elif current_state == State.PARAM_KEY:
+                assert selected_func is not None
                 param_key, param_type = list(
                     selected_func.parameters.items())[current_param_index]
                 current_param_key = param_key
@@ -92,16 +94,17 @@ class Decoder:
 
             elif current_state == State.PARAM_VALUE:
                 logits = self.llm.get_logits_from_input_ids(input_ids)
+                valid_tokens: list[int] = []
                 if current_param_type.type == "string":
-                    valid_tokens: list[int] = self._valid_str_token_ids()
+                    valid_tokens = self._valid_str_token_ids()
                 elif current_param_type.type == "number":
-                    valid_tokens: list[int] = self._valid_num_token_ids()
+                    valid_tokens = self._valid_num_token_ids()
                 if not valid_tokens:
                     current_state = State.PARAM_SEPERATOR
                 else:
-                    modified_logits: list[float] = self._modify_logits(
+                    modified_logits = self._modify_logits(
                         logits, valid_tokens)
-                    highest_index: int = numpy.argmax(modified_logits)
+                    highest_index = int(numpy.argmax(modified_logits))
                     if self.id_to_text[highest_index] == '"':
                         current_state = State.PARAM_SEPERATOR
                     else:
@@ -112,6 +115,7 @@ class Decoder:
                 output_json += current_value
                 output_sign: str = ""
                 collected_params[current_param_key] = current_value
+                assert selected_func is not None
                 if current_param_index < len(selected_func.parameters) - 1:
                     output_sign += ", "
                     current_param_index += 1
@@ -129,7 +133,6 @@ class Decoder:
             "parameters": collected_params
         }
 
-
     def _build_system_prompt(self) -> str:
         sys_prompt: str = (
             "You are a function calling assistant. Available functions:")
@@ -138,9 +141,6 @@ class Decoder:
                 [f"{key}: {val.type}" for key, val in func.parameters.items()])
             sys_prompt += f"\n- {func.name} ({params})"
         return sys_prompt
-
-    def get_valid_token(self) -> None:
-        current_state = State.START
 
     def _check_next_token(self, current_string: str, next_token: str) -> bool:
         for func in self.functions_list:
@@ -156,7 +156,8 @@ class Decoder:
         return valid_tokens
 
     def _modify_logits(
-        self, logits: list[float], valid_tokens: list[int]) -> list[float]:
+         self, logits: list[float], valid_tokens: list[int]
+         ) -> list[float]:
         modified_logits: list[float] = []
         for index, log in enumerate(logits):
             if index not in valid_tokens:
@@ -171,7 +172,6 @@ class Decoder:
             if all(c in "0123456789.-" for c in token):
                 valid_tokens.append(ids)
         return valid_tokens
-    
+
     def _valid_str_token_ids(self) -> list[int]:
         return list(self.vocab_dict.values())
-            

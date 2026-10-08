@@ -1,7 +1,12 @@
 import argparse
-from .models import parse_json_list, T, FunctionDefinition, PromptDefinition
+import json
+import os
+import sys
+from .models import parse_json_list, FunctionDefinition, PromptDefinition
 from llm_sdk.llm_sdk import Small_LLM_Model
 from .decoder import Decoder
+from typing import Any
+
 
 def main() -> None:
     """Run the main programm and parse the command
@@ -28,9 +33,17 @@ def main() -> None:
     prompts: list[PromptDefinition] = parse_json_list(args.input, PromptDefinition)
     llm: Small_LLM_Model = Small_LLM_Model()
     decoder: Decoder = Decoder(llm, functions)
-    
-    
-    
+    json_output: list[dict[str, Any]] = []
+    for prompt in prompts:
+        json_output.append(decoder.prompt_to_json(prompt.prompt))
+    os.makedirs(os.path.dirname(args.output), exist_ok=True)
+    with open(args.output, "w") as f:
+        json.dump(json_output, f)
+
+
 if __name__ == "__main__":
-    
-    main()
+    try:
+        main()
+    except Exception as e:
+        print(f"Error: {e}")
+        sys.exit(1)

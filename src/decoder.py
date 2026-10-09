@@ -32,8 +32,7 @@ class Decoder:
         self.id_to_text = {v: k for k, v in self.vocab_dict.items()}
 
     def prompt_to_json(self, prompt: str) -> dict[str, Any]:
-        full_sys_prompt: str = (
-            self._build_system_prompt() + "\nUser request:" + prompt)
+        full_sys_prompt: str = self._build_system_prompt(prompt)
         tensor = self.llm.encode(full_sys_prompt)
         input_ids: list[int] = tensor[0].tolist()
         logits: list[float] = self.llm.get_logits_from_input_ids(input_ids)
@@ -48,7 +47,6 @@ class Decoder:
         collected_params: dict[str, Any] = {}
         current_param_type: Any = ""
         while (bracket_count != 0):
-
             if current_state == State.START:
                 fixed_start: str = '{"name": "'
                 start_ids = self.llm.encode(fixed_start)[0].tolist()
@@ -96,27 +94,34 @@ class Decoder:
                 logits = self.llm.get_logits_from_input_ids(input_ids)
                 valid_tokens: list[int] = []
                 if current_param_type.type == "string":
-                    valid_tokens = self._valid_str_token_ids()
+                    modified_logits = list(logits)
+                    for token, ids in self.vocab_dict.items():
+                        if '"' in token and token != '"':
+                            modified_logits[ids] = float('-inf')
+                    valid_tokens = [1]
                 elif current_param_type.type == "number":
                     valid_tokens = self._valid_num_token_ids()
+                    modified_logits = self._modify_logits(
+                        logits, valid_tokens)
                 if not valid_tokens:
                     current_state = State.PARAM_SEPERATOR
                 else:
-                    modified_logits = self._modify_logits(
-                        logits, valid_tokens)
                     highest_index = int(numpy.argmax(modified_logits))
-                    if self.id_to_text[highest_index] == '"':
+                    if self.id_to_text[highest_index] in [',', '}', '"']:
                         current_state = State.PARAM_SEPERATOR
                     else:
                         current_value += self.id_to_text[highest_index]
-                    input_ids.append(highest_index)
+                        input_ids.append(highest_index)
 
             elif current_state == State.PARAM_SEPERATOR:
                 output_json += current_value
                 output_sign: str = ""
-                collected_params[current_param_key] = current_value
+                if current_param_type.type == "number":
+                    collected_params[current_param_key] = float(current_value)
+                else:
+                    collected_params[current_param_key] = current_value
                 assert selected_func is not None
-                if current_param_index < len(selected_func.parameters) - 1:
+                if (current_param_index < len(selected_func.parameters) - 1):
                     output_sign += ", "
                     current_param_index += 1
                     current_value = ""
@@ -133,13 +138,16 @@ class Decoder:
             "parameters": collected_params
         }
 
-    def _build_system_prompt(self) -> str:
+    def _build_system_prompt(self, prompt: str) -> str:
+        func_json_str = json.dumps(
+            [func.model_dump() for func in self.functions_list])
         sys_prompt: str = (
-            "You are a function calling assistant. Available functions:")
-        for func in self.functions_list:
-            params = ", ".join(
-                [f"{key}: {val.type}" for key, val in func.parameters.items()])
-            sys_prompt += f"\n- {func.name} ({params})"
+            f"You are a function calling assistant. Based on the following "
+            f"prompt, choose the matching function:\n{prompt}\n "
+            f"IMPORTANT: Choose the function based ONLY on the current user "
+            f"request, not on previouscontext Available functions:\n"
+            f"{func_json_str}\n\n Make sure to decide based on all available "
+            f"informations. Return only the name.\n\n")
         return sys_prompt
 
     def _check_next_token(self, current_string: str, next_token: str) -> bool:
@@ -169,9 +177,6 @@ class Decoder:
     def _valid_num_token_ids(self) -> list[int]:
         valid_tokens: list[int] = []
         for token, ids in self.vocab_dict.items():
-            if all(c in "0123456789.-" for c in token):
+            if all(c in "0123456789.-" for c in token) or token in [",", "}"]:
                 valid_tokens.append(ids)
         return valid_tokens
-
-    def _valid_str_token_ids(self) -> list[int]:
-        return list(self.vocab_dict.values())

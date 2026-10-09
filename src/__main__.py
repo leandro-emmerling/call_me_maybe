@@ -42,7 +42,7 @@ def main() -> None:
         json_output.append(decoder.prompt_to_json(prompt.prompt))
     os.makedirs(os.path.dirname(args.output), exist_ok=True)
     with open(args.output, "w") as f:
-        json.dump(json_output, f)
+        json.dump(json_output, f, indent=4)
 
 
 if __name__ == "__main__":

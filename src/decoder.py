@@ -46,7 +46,9 @@ class Decoder:
         current_param_key: str = ""
         collected_params: dict[str, Any] = {}
         current_param_type: Any = ""
+        token_count: int = 0
         while (bracket_count != 0):
+
             if current_state == State.START:
                 fixed_start: str = '{"name": "'
                 start_ids = self.llm.encode(fixed_start)[0].tolist()
@@ -80,6 +82,7 @@ class Decoder:
                     selected_func.parameters.items())[current_param_index]
                 current_param_key = param_key
                 current_param_type = param_type
+                token_count = 0
                 param_keys: str = f'"{param_key}": '
                 param_keys_ids = self.llm.encode(param_keys)[0].tolist()
                 input_ids += param_keys_ids
@@ -95,14 +98,22 @@ class Decoder:
                 valid_tokens: list[int] = []
                 if current_param_type.type == "string":
                     modified_logits = list(logits)
+                    modified_logits[1] += token_count * 0.5
+                    token_count += 1
                     for token, ids in self.vocab_dict.items():
                         if '"' in token and token != '"':
                             modified_logits[ids] = float('-inf')
                     valid_tokens = [1]
                 elif current_param_type.type == "number":
-                    valid_tokens = self._valid_num_token_ids()
-                    modified_logits = self._modify_logits(
-                        logits, valid_tokens)
+                    token_count += 1
+                    if token_count > 20:
+                        current_state = State.PARAM_SEPERATOR
+                        continue
+                    else:
+                        valid_tokens = self._valid_num_token_ids()
+                        modified_logits = self._modify_logits(
+                            logits, valid_tokens)
+
                 if not valid_tokens:
                     current_state = State.PARAM_SEPERATOR
                 else:
@@ -117,9 +128,15 @@ class Decoder:
                 output_json += current_value
                 output_sign: str = ""
                 if current_param_type.type == "number":
-                    collected_params[current_param_key] = float(current_value)
+                    if current_value:
+                        try:
+                            collected_params[current_param_key] = float(current_value)
+                        except ValueError:
+                            collected_params[current_param_key] = current_value
+                    else:
+                        collected_params[current_param_key] = 0.0
                 else:
-                    collected_params[current_param_key] = current_value
+                    collected_params[current_param_key] = current_value.replace("\u0120", " ")
                 assert selected_func is not None
                 if (current_param_index < len(selected_func.parameters) - 1):
                     output_sign += ", "

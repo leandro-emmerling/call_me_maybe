@@ -1,17 +1,35 @@
 [
-{
-    "prompt": "What is the sum of 2 and 3?"
-},
-{
-    "prompt": "What is the sum of 265 and 345?"
-},
-{
-    "prompt": "Greet shrek"
-},
-{
-    "prompt": "Greet john"
-},
-{
-    "prompt": "Reverse the string 'hello'"
-}
+  {
+    "prompt": "What is the sum of -123324253534523453453452345234523 and 42346456436456456454564564564561?"
+  },
+  {
+    "prompt": "What is the sum of 0 and infinity?"
+  },
+  {
+    "prompt": "Greet \"\n\t"
+  },
+  {
+    "prompt": "Greet slfkldsmfasdflbfjdbsjfhbsajfkjdbjkfjkabfjbbsdjfjsdfjhksdbfkjksbdfkjsbdfjsbdfkjbsjkdfbjsbfjhbs"
+  },
+  {
+    "prompt": "Reverse the string 'slfkldsmfasdflbfjdbsjfhbsajfkjdbjkfjkabfjbbsdjfjsdfjhksdbfkjksbdfkjsbdfjsbdfkjbsjkdfbjsbfjhbs'"
+  },
+  {
+    "prompt": "Reverse the string ''"
+  },
+  {
+    "prompt": "What is the square root of infinity?"
+  },
+  {
+    "prompt": "Calculate the square root of -3823766234"
+  },
+  {
+    "prompt": "Replace all numbers in \"Hello 34 I'm 233 years old\" with \t"
+  },
+  {
+    "prompt": "Replace all vowels in 'Programming is fun' with ü"
+  },
+  {
+    "prompt": "Substitute the word 'cat' with 'ü' in 'The cat sat on the mat with another cat'"
+  }
 ]

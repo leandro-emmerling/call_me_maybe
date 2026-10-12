@@ -22,7 +22,7 @@ class Decoder:
         """Initialize the decoder.
 
         Args:
-            llm: A instance of the LLM to compute with the data
+            llm: A instance of the LLM to compute with the data.
             function_defintion: A list of fix functions the class work with.
         """
         self.llm = llm
@@ -32,6 +32,16 @@ class Decoder:
         self.id_to_text = {v: k for k, v in self.vocab_dict.items()}
 
     def prompt_to_json(self, prompt: str) -> dict[str, Any]:
+        """Takes the prompt and split's it into the specific arguments and
+        function defintion in JSON output format.
+
+        Args:
+            prompt: the given prompt from the function_calling_test.json.
+
+        Returns:
+            dict: a collection of all informations transformed into the JSON
+            output format.
+        """
         full_sys_prompt: str = self._build_system_prompt(prompt)
         tensor = self.llm.encode(full_sys_prompt)
         input_ids: list[int] = tensor[0].tolist()
@@ -130,13 +140,17 @@ class Decoder:
                 if current_param_type.type == "number":
                     if current_value:
                         try:
-                            collected_params[current_param_key] = float(current_value)
+                            collected_params[current_param_key] = (
+                                float(current_value)
+                                )
                         except ValueError:
                             collected_params[current_param_key] = current_value
                     else:
                         collected_params[current_param_key] = 0.0
                 else:
-                    collected_params[current_param_key] = current_value.replace("\u0120", " ")
+                    collected_params[current_param_key] = (
+                        current_value.replace("\u0120", " ")
+                        )
                 assert selected_func is not None
                 if (current_param_index < len(selected_func.parameters) - 1):
                     output_sign += ", "
@@ -156,6 +170,15 @@ class Decoder:
         }
 
     def _build_system_prompt(self, prompt: str) -> str:
+        """Concatenate the system prompt for the llm to give it a correct
+        context what it's supposed to do.
+
+        Args:
+            prompt: the given prompt from the function_calling_test.json.
+
+        Returns:
+            The full systemprompt within the given prompt.
+        """
         func_json_str = json.dumps(
             [func.model_dump() for func in self.functions_list])
         sys_prompt: str = (
@@ -168,12 +191,32 @@ class Decoder:
         return sys_prompt
 
     def _check_next_token(self, current_string: str, next_token: str) -> bool:
+        """Checks if the current string + next token matches to one of the
+        predefined functions of the functions_list.
+
+        Args:
+            current_string: the string that is build until this state.
+            next_token: the token that comes next to the current string.
+
+        Returns:
+            True if the concatenated string starts with one of the given
+            functions, else False.
+        """
         for func in self.functions_list:
             if func.name.startswith(current_string + next_token):
                 return True
         return False
 
     def _valid_token_ids(self, current_string: str) -> list[int]:
+        """Checks the vocab dict for valid token of the current string and
+        append it to a list if they are valid.
+
+        Args:
+            current_string: the string that is build until this state.
+
+        Returns:
+            A list of all valid ids.
+        """
         valid_tokens: list[int] = []
         for token, ids in self.vocab_dict.items():
             if self._check_next_token(current_string, token):
@@ -183,6 +226,16 @@ class Decoder:
     def _modify_logits(
          self, logits: list[float], valid_tokens: list[int]
          ) -> list[float]:
+        """Modifys the logits based on the valid_tokens and append them to a
+        list of floats.
+
+        Args:
+            logits: a list of all logits.
+            valid_tokens (list[int]): a list of all valid ids.
+
+        Returns:
+            A list of all modified logits.
+        """
         modified_logits: list[float] = []
         for index, log in enumerate(logits):
             if index not in valid_tokens:
@@ -192,6 +245,12 @@ class Decoder:
         return modified_logits
 
     def _valid_num_token_ids(self) -> list[int]:
+        """Checks especially for the valid number tokens and if they are valid
+        append them to a list of valid_tokens.
+
+        Returns:
+            A list of all valid ids for the number token.
+        """
         valid_tokens: list[int] = []
         for token, ids in self.vocab_dict.items():
             if all(c in "0123456789.-" for c in token) or token in [",", "}"]:

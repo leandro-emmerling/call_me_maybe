@@ -23,7 +23,7 @@ class Decoder:
 
         Args:
             llm: A instance of the LLM to compute with the data.
-            function_defintion: A list of fix functions the class work with.
+            function_definition: A list of fix functions the class work with.
         """
         self.llm = llm
         self.functions_list = functions_list
@@ -32,7 +32,7 @@ class Decoder:
         self.id_to_text = {v: k for k, v in self.vocab_dict.items()}
 
     def prompt_to_json(self, prompt: str) -> dict[str, Any]:
-        """Takes the prompt and split's it into the specific arguments and
+        """Takes the prompt and splits it into the specific arguments and
         function defintion in JSON output format.
 
         Args:
@@ -226,7 +226,7 @@ class Decoder:
     def _modify_logits(
          self, logits: list[float], valid_tokens: list[int]
          ) -> list[float]:
-        """Modifys the logits based on the valid_tokens and append them to a
+        """Modifies the logits based on the valid_tokens and append them to a
         list of floats.
 
         Args:
@@ -249,7 +249,8 @@ class Decoder:
         append them to a list of valid_tokens.
 
         Returns:
-            A list of all valid ids for the number token.
+            A list of all valid ids for the valid tokens for constrained
+            decoding.
         """
         valid_tokens: list[int] = []
         for token, ids in self.vocab_dict.items():
